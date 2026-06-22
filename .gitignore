@@ -25,3 +25,9 @@ __pycache__/
 .venv/
 venv/
 zero_fill_report.csv
+# MD run directories + trajectory binaries (multi-GB — kept out of git; scripts/mdp tracked)
+md/runs/
+*.xtc
+*.trr
+*.cpt
+*.edr
