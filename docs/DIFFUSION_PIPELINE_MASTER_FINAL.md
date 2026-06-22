@@ -3984,3 +3984,22 @@ Per the fixed reading: vedotin is neither low-and-tight (<1.5 A → would mean t
 **Caveats (blunt, not reassurance).** Same structural limits as §20.8 (self-RMSD fragile = drift from an arbitrary pose; junction = single harmonic bond; 300 K not 310 K; fixed protonation; deconjugation chemistry absent; N=3 → low power, only large separations detectable). Vedotin-specific: Val-Cit-PAB stereo taken from the authoritative SMILES; the thiosuccinimide C3 stereocenter is an arbitrary single diastereomer (stripped pre-merge, identical handling to candidates); modeled as the closed succinimide (the ring-opening/hydrolysis [STAB] axis is still absent). This control validates the *regime*, not a *ranking* — a defensible ranking still needs levers (b) constant-pH/microenvironment and (c) reactive deconjugation (§20.7 roadmap), both out of scope.
 
 **Net.** The positive scale control behaves exactly as a non-discriminating metric predicts: the clinical gold-standard linker is statistically indistinguishable from the generated candidates. This is the strongest available confirmation that the operative screens remain the 3D chemical-validity gate (§20.11) + AMM potency (2D) — not MD self-RMSD. Closes the brentuximab-vedotin item on the rigor to-do.
+
+### §20.13 — Cys214 conjugation-site microenvironment (Sebastian-Perez axis): static + dynamic — site is NOT strongly self-stabilising
+
+**Purpose.** Characterise the physical determinants of conjugate stability AT the modeling site — a proximal basic residue catalyses succinimide ring-opening hydrolysis (→ self-stabilising maleimide that resists retro-Michael, Lyon et al. 2014), plus local pKa and solvent exposure. This is roadmap lever **(b)**, the cheap STATIC part (no new MD). `analysis/site_microenv.py` + PROPKA3 + a dynamic mindist on the vedotin conjugate.
+
+**Static (apo receptor, PROPKA3 + geometry on 1N8Z Fab+HER2):**
+- **pKa(Cys214 SG) = 9.88** (model 9.0) — a normal, slightly-elevated exposed-thiol pKa; predominantly protonated thiol at pH 7.4. SG-SASA = 43.75 Å² (the most solvent-exposed free Cys — the selection criterion for this proxy site).
+- Immediate environment (≤8 Å of SG) is **ACIDIC**: Glu213 (4.5 Å), Asp122 (8.0 Å), + Gly212, Pro220(heavy).
+- **Nearest basic residue: Arg211 (light chain) at 8.9 Å**, then Lys136 at 10.3 Å — both **beyond the ~5-7 Å catalytic range**. → Statically, **no proximal base; an acidic-leaning site.**
+
+**Dynamic (vedotin conjugate, rep#1 50 ns; succinimide ring atoms 3337-3343 vs all Fab basic side-chain N):**
+- succinimide ↔ nearest basic-N: **mean 5.5 Å, min 2.6 Å, 54 % of frames < 5 Å**, 8 % < 4 Å.
+- Dominant contacts are **all on the antibody (Fab), none on HER2**: a Fab **heavy-chain Lys** (≈2.7 Å, the majority of frames), light-chain **Arg211** (4.7 Å), **Lys190** (3.3 Å). The flexible mc-vc-PAB linker swings the succinimide into **transient** contact with Fab basic residues.
+
+**Sebastian-Perez read (blunt).** The defining feature of a *strongly* self-stabilising site — a **PERSISTENT** proximal positive charge poised to catalyse hydrolytic ring-opening — is **absent**: no base within 8 Å of the SG statically, and the immediate thiosuccinimide environment is acidic. The dynamic basic contacts are real but **transient and geometrically loose** (mean 5.5 Å, driven by flexible-linker sampling), not a locked catalytic arrangement. → **Predicted WEAK / unreliable self-stabilisation at this site.**
+
+**Caveats (not reassurance).** (i) Cys214 is a **PROXY** — 1N8Z lacks the true brentuximab-vedotin IgG hinge Cys, so this characterises the *modeling* site, not the clinical Adcetris site; the real hinge microenvironment differs and is not captured. (ii) The dynamic contacts depend on the arbitrary single-conformer-derived initial linker pose (same fragility as the §20.8 self-RMSD). (iii) The static site analysis is candidate-independent (all candidates share Cys214); only the dynamic linker excursions differ by linker — so this annotates the *site*, it does not rank candidates.
+
+**Net.** Lever-(b) groundwork delivered: the modeling proxy site is **not a strong self-stabilising environment** by the Sebastian-Perez criterion (acidic SG neighbourhood, no persistent proximal base, only transient flexible-linker basic contacts). It does not rescue a ranking (shared site). A quantitative stability prediction would still require constant-pH MD + the reactive deconjugation treatment (lever **c**), both out of scope.
