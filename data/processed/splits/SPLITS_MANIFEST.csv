@@ -1,0 +1,8 @@
+split,kind,train_prefix,n_train,detail,config
+pareto_f050_s0,pareto,geom_pareto_f050_s0_train,1240,target_cys=50% actual_cys=50.0% n_cys=620,/home/galeito/ADCpedia/data/processed/splits/pareto_f050_s0/pareto_f050_s0.yml
+pareto_f066_s0,pareto,geom_pareto_f066_s0_train,1240,target_cys=66% actual_cys=66.0% n_cys=818,/home/galeito/ADCpedia/data/processed/splits/pareto_f066_s0/pareto_f066_s0.yml
+pareto_f075_s0,pareto,geom_pareto_f075_s0_train,1240,target_cys=75% actual_cys=75.0% n_cys=930,/home/galeito/ADCpedia/data/processed/splits/pareto_f075_s0/pareto_f075_s0.yml
+pareto_f085_s0,pareto,geom_pareto_f085_s0_train,1240,target_cys=85% actual_cys=85.0% n_cys=1054,/home/galeito/ADCpedia/data/processed/splits/pareto_f085_s0/pareto_f085_s0.yml
+pareto_f100_s0,pareto,geom_pareto_f100_s0_train,1240,target_cys=100% actual_cys=100.0% n_cys=1240,/home/galeito/ADCpedia/data/processed/splits/pareto_f100_s0/pareto_f100_s0.yml
+lopo_auristatin_s0,lopo,geom_lopo_auristatin_s0_train,1000,held_out=auristatin dropped_rows=240 kept_rows=1000,/home/galeito/ADCpedia/data/processed/splits/lopo_auristatin_s0/lopo_auristatin_s0.yml
+lopo_camptothecin_s0,lopo,geom_lopo_camptothecin_s0_train,1020,held_out=camptothecin dropped_rows=220 kept_rows=1020,/home/galeito/ADCpedia/data/processed/splits/lopo_camptothecin_s0/lopo_camptothecin_s0.yml

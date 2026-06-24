@@ -1,0 +1,91 @@
+exp_name: 'lopo_camptothecin_s0'
+
+# Absolute path so we don't have to copy data into the DiffLinker repo.
+# Files are symlinked with the geom_* prefix to make ``ZincDataset`` detect
+# ``is_geom=True`` (matches the pre-trained checkpoint's atom vocabulary).
+#
+# REAL dataset: difflinker_trainset_v2_incl_aug_dedup/ (ADCpedia, 720 train /
+# 140 val). It ships raw SDF/CSV as adc_cys_{train,val}_{frag,link}.sdf/table.csv;
+# we symlink them with a geom_ prefix (geom_adc_cys_train_*) so that
+# is_geom=('geom' in prefix) is True — that selects the GEOM atom vocabulary,
+# which MUST match the pre-trained geom_difflinker checkpoint's embedding
+# shapes for resume to work. ZincDataset auto-builds geom_adc_cys_*.pt from
+# the SDFs on first access (then caches them in this dir).
+data: /home/galeito/ADCpedia/data/processed/splits/lopo_camptothecin_s0
+train_data_prefix: geom_lopo_camptothecin_s0_train
+val_data_prefix: geom_lopo_camptothecin_s0_val
+
+checkpoints: checkpoints
+logs: logs
+# NOTE: 'device' is intentionally NOT set here. The YAML config overrides the
+# CLI in train_difflinker.py (config values are written into arg_dict after
+# argparse), so hard-coding device would silently shadow --device. Leaving it
+# out lets the SAME config serve the separate GPU env (--device gpu) and the
+# validated CPU fallback env (--device cpu, the argparse default).
+log_iterations: 5
+wandb_entity: null
+enable_progress_bar: False
+
+# --- model hyperparams: kept identical to geom_difflinker.yml so the
+# pre-trained checkpoint's tensors load with matching shapes ---
+model: egnn_dynamics
+n_layers: 6
+nf: 128
+activation: silu
+attention: False
+condition_time: True
+tanh: False
+norm_constant: 0.000001
+inv_sublayers: 2
+include_charges: False
+diffusion_loss_type: l2
+center_of_mass: fragments
+remove_anchors_context: True
+sin_embedding: False
+normalization_factor: 100
+normalize_factors: [1, 4, 10]
+aggregation_method: 'sum'
+normalization: batch_norm
+
+# --- fine-tune-specific overrides ---
+lr: 1.0e-5
+batch_size: 4
+# reset_optimizer is False (below), so resume restores the GEOM epoch counter
+# (=839). max_epochs must exceed it: 839 + 200 = 1039 -> ~200 fine-tune epochs
+# as the safe upper bound (early stopping should trigger far sooner). Round to
+# 1040 for margin.
+n_epochs: 1040
+test_epochs: 999999      # disable per-epoch sample_and_analyze (n_stability_samples=0
+                         # makes it useless and it rebuilds 140 RDKit val mols/epoch)
+n_stability_samples: 0   # skip the expensive sampling-based stability metric
+data_augmentation: False
+
+# Early stopping on the validation loss (task requirement). EarlyStopping is
+# wired in train_difflinker.py and reads these argparse dests straight from
+# the YAML. Gradient clipping is essential when fine-tuning a GEOM-trained
+# DDPM on out-of-distribution ADC linkers (occasional ~1e18 losses otherwise).
+early_stop: True
+early_stop_patience: 20
+gradient_clip_val: 1.0
+
+# Stabilisation of OOD fine-tuning from the GEOM checkpoint. Large ADC
+# molecules at high diffusion timesteps occasionally overflow the forward loss
+# to inf, which (pre-fix) NaN'd the weights and cascaded. The decisive fix is
+# the isfinite-loss GUARD (always on via --skip_nan_batches): it skips inf/nan
+# losses BEFORE backward so the weights never corrupt. With it, 5/5 GPU smoke
+# runs survive 200 steps and converge to ~0.1 loss.
+#
+# reset_optimizer + lr_warmup were tested and turned out COUNTERPRODUCTIVE
+# (5-run smoke ablation): fresh AdamW + LR warmup left the weights stuck in the
+# overflow-prone region and produced ~18 inf/200 batches, vs 0-4/200 when
+# KEEPING the restored GEOM optimizer at full LR (it has well-scaled Adam
+# moments that adapt the weights out of the overflow region within a few
+# steps). So both are disabled — the guard alone carries stability.
+reset_optimizer: False
+lr_warmup_steps: 0
+
+# Resume slot. checkpoints/adc_cys_finetune/ is seeded with the pre-trained
+# GEOM checkpoint renamed to an epoch-N file (adc_cys_finetune_epoch=00.ckpt,
+# byte-identical to models/geom_difflinker.ckpt) so find_last_checkpoint()
+# resumes fine-tuning from the pre-trained weights.
+resume: 'lopo_camptothecin_s0'

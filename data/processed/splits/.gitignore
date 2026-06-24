@@ -1,0 +1,7 @@
+# Regenerable split trios (rebuild deterministically via
+#   PYTHONPATH=src python -m diffusion.data.build_split {pareto|lopo} ...)
+*_frag.sdf
+*_link.sdf
+*_table.csv
+*.pt
+# Keep: SPLITS_MANIFEST.csv and the per-split *.yml configs.
