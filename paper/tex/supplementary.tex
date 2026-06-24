@@ -1,0 +1,257 @@
+% =====================================================================
+%  Supporting Information for
+%  "Evaluating generative antibody-drug conjugate linkers"
+%  Compile:  latexmk -pdf -bibtex supplementary.tex
+%  (standalone; reuses references.bib)
+% =====================================================================
+\documentclass[10pt]{article}
+
+\usepackage[letterpaper,margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage[version=4]{mhchem}
+\usepackage{graphicx}
+\graphicspath{{../figures/}}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{ink}{HTML}{17314A}
+\definecolor{accent}{HTML}{0072B2}
+\definecolor{tint}{HTML}{EAF3FA}
+\hypersetup{colorlinks=true,linkcolor=accent,citecolor=accent,urlcolor=accent}
+\captionsetup{font=small,labelfont={bf,color=accent},labelsep=period}
+
+% Number SI floats/sections as S1, S2, ...
+\renewcommand{\thesection}{S\arabic{section}}
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\theequation}{S\arabic{equation}}
+
+\title{\textbf{\color{ink}Supporting Information}\\[0.3em]
+\large Evaluating generative antibody--drug conjugate linkers:\\
+chemical validity, covalent dynamics, and an FDA-anchored control}
+\author{Ga\"el Coulombe \and Hazem Mslati}
+\date{}
+
+\begin{document}
+\maketitle
+
+\noindent
+This Supporting Information documents the generation pipeline (dataset construction, fine-tuning recipe,
+sampling sweeps) and the chemical-validity gate. The generation work is \emph{prior} to the paper's
+contribution (the evaluation result); it is reported here for reproducibility. All numbers are reported
+from disk-verified pipeline outputs. Section references (\S) point to the main text.
+
+\tableofcontents
+\vspace{1em}
+
+% =====================================================================
+\section{Dataset construction}
+\label{si:data}
+
+\paragraph{Payload-anchored decomposition.}
+Each ADC in the source dataset\cite{mslati2026} provides the full conjugate SMILES, the isolated payload
+SMILES, and a free-text conjugation-site annotation. Earlier pipelines guessed the linker/payload
+boundary with reaction SMARTS, which covered only $\approx$72\,\% of records and failed silently on
+non-canonical chemistries. We instead \emph{anchor} the boundary: the provided payload is located as a
+subgraph of the full conjugate, and the single cross-boundary bond defines the linker/payload cut. The
+dataset stores the payload in its post-conjugation form, so 49/53 cysteine ADCs contain the payload as an
+exact substructure; an MCS fallback (RDKit \texttt{rdFMCS}, \texttt{bondCompare=CompareAny}, $\geq$70\,\%
+coverage) recovers the remainder. Coverage rises to \textbf{98.1\,\%} (52/53). When several substitution
+sets match, the one with the fewest junction atoms is chosen, and exactly one cross-boundary bond is
+required.
+
+\paragraph{Deduplication and leakage control.}
+Deduplication at the \emph{canonical linker--payload (L/P)} level --- rather than by source record UUID
+--- caught four real train/validation leaks that a UUID-only check had masked. The cysteine-only
+fine-tuning set is \textbf{43 unique L/Ps} (36 in train), with \textbf{0} cross-split L/P leakage. The
+multi-site set extends this to \textbf{73 unique L/Ps} across three conjugation chemistries (cysteine,
+lysine, click).
+
+\paragraph{Conformer augmentation.}
+Each L/P is embedded in 3D with ETKDGv3 and MMFF94 optimization (UFF fallback), generating up to 20
+diverse conformers per L/P (RMS pruning, minimum-diversity 0.5\,\AA). DiffLinker consumes a fragment file
+(payload + maleimide stub) and a link file (the spacer to be regenerated), with anchor indices marking the
+attachment atoms. The augmented cysteine-only set is 720 train / 140 validation examples; the multi-site
+set is larger (Table~\ref{tab:datasets}). Augmentation increases \emph{geometric} diversity only; it does
+not add chemical (topological) diversity --- 20 conformers of one molecule remain one molecule, which is
+the origin of the ``data wall'' discussed below.
+
+\begin{table}[t]
+\caption{DiffLinker training sets. ``L/Ps'' = unique linker--payloads; ``examples'' = conformer-augmented
+fragment/link pairs after the train/validation split.}
+\label{tab:datasets}
+\centering\small
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+\rowcolor{tint}Set & unique L/Ps & examples (train/val) & chemistries \\
+\midrule
+Cysteine-only (dedup) & 43 & 720 / 140 & cysteine \\
+Multi-site            & 73 & 1240 / 202 & cysteine, lysine, click \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =====================================================================
+\section{Fine-tuning recipe and numerical stability}
+\label{si:finetune}
+
+DiffLinker\cite{igashov2024} ($E(n)$-equivariant diffusion, pretrained on GEOM-Drugs\cite{axelrod2022})
+was fine-tuned on a single RTX~4080 (16\,GB). Hyperparameters: learning rate $1\times10^{-5}$, batch
+size 4, gradient clipping 1.0, \emph{no} learning-rate warmup, \emph{no} optimizer reset (the GEOM Adam
+moment estimates are restored), early stopping (patience 20) on the denoising validation loss. Best
+validation loss was 0.1159 for the cysteine-only fine-tune and 0.1143 for the multi-site fine-tune.
+
+\paragraph{The isfinite guard.}
+Large ADCs ($\gtrsim$95 heavy atoms) at high diffusion timesteps occasionally produce a non-finite
+forward loss in single precision (a physics/numerics overflow, $\approx$2\,\% of batches). A pre-backward
+\texttt{isfinite} guard that skips the offending batch --- combined with the restored Adam moments ---
+prevents a NaN cascade. In a controlled ablation (5 runs $\times$ 200 steps), the guard gave 0/5 NaN
+cascades and 5/5 convergence; without it, 4/5 runs diverged. Resetting the optimizer or adding warmup
+\emph{worsened} stability, because the restored GEOM moments actively pull weights out of the overflow
+region.
+
+\paragraph{Denoising loss is not generation quality.}
+The validation loss is a diffusion \emph{denoising} objective and is \emph{not} a direct measure of
+generated-molecule quality. We therefore report generation quality with the operational usable-3D yield
+and Wilson 95\,\% confidence intervals (Section~\ref{si:sweeps}), not with validation loss.
+
+% =====================================================================
+\section{The two tradeoffs and the Pareto frontier}
+\label{si:pareto}
+
+Two intrinsic tradeoffs constrain the generator; neither is removed by any easy lever, so the operating
+point can only be \emph{moved along} a Pareto frontier.
+
+\paragraph{Chemistry vs.\ connectivity (the size axis).}
+Within one model, forcing larger linkers increases ADC chemistry but decreases geometric cohesion. As the
+forced linker size rises from 15 to 60, single-fragment connectivity falls ($\approx$30\,\%
+$\rightarrow$ $\approx$4\,\%) while the Val-Cit and urea motif rates rise (to 64\,\% and 81\,\%
+respectively; Table~1, main text). The operational size is chosen near the knee (20--25).
+
+\paragraph{Specificity vs.\ diversity (the dataset axis).}
+Broadening the training distribution (multi-site) improves connectivity but dilutes the dominant
+cysteine--Val-Cit signal toward the population mean. The two effects trade off monotonically with the
+\emph{cysteine sampling fraction}, which therefore acts as an operational slider along the frontier
+(Table~\ref{tab:pareto}). No setting maximizes both connectivity and target chemistry.
+
+\begin{table}[t]
+\caption{The Pareto frontier: cysteine sampling fraction vs.\ connectivity and target chemistry, at the
+operational size (20). Connectivity and Val-Cit rates move in opposition; no configuration is dominant.}
+\label{tab:pareto}
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\rowcolor{tint}Configuration & \% cysteine & native-conn.\ (\%) & Val-Cit (\%) \\
+\midrule
+Multi-site (natural)   & 66  & 45 & 10 \\
+Curriculum ($3\times$) & 85  & 23 & 33 \\
+Cysteine-only          & 100 & 28 & 23 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =====================================================================
+\section{Sampling sweeps and the $n{=}500$ re-baseline}
+\label{si:sweeps}
+
+\paragraph{Usable-3D definition.}
+A generated molecule is \emph{usable-3D} if it is (a)~natively connected (a single fragment under
+distance-based bond perception, with \emph{no} post-hoc minimum-spanning-tree closure), (b)~MMFF94-valid
+(radical-neutralized, sanitizable, and minimizable to a finite energy while remaining a single fragment),
+and (c)~ADC-motif-bearing (Val-Cit or urea). This is the gate of \S\,4.2; it is the strict 3D criterion
+required for the downstream covalent build, which a 2D-only screen would not satisfy.
+
+\paragraph{Re-baseline.}
+Early single-checkpoint comparisons at $n{=}100$ suggested a $\approx$1.5--2$\times$ yield gain from 50
+extra fine-tuning epochs. Re-running at $n{=}500$ with Wilson 95\,\% confidence intervals
+(Table~\ref{tab:rebaseline}) erased it: a clean $\lambda{=}0$ control --- in which the additional
+connectivity penalty is a mechanical no-op --- regressed to baseline rather than matching the $\lambda{=}0.01$
+arm, with \emph{disjoint} confidence intervals. The only difference between the two runs is
+GPU-nondeterministic training-trajectory variance. \textbf{The apparent gain was a single
+favourable-variance draw.} The operational yield is $\approx$9--10 usable-3D candidates per 100. The
+methodological consequence: single-checkpoint comparisons at $n{<}500$ cannot separate variance from
+signal; multi-seed evaluation with confidence intervals at $n{\geq}500$ is required.
+
+\begin{table}[t]
+\caption{$n{=}500$ re-baseline (3D-strict), Wilson 95\,\% CI. The $\lambda{=}0.01$ arm and the
+$\lambda{=}0$ control have disjoint CIs despite the penalty being a no-op in the control --- the
+difference is run-to-run training variance, not a real effect. Curriculum, multi-site, and the
+$\lambda{=}0$ control are mutually overlapping.}
+\label{tab:rebaseline}
+\centering\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\rowcolor{tint}Config ($n{=}500$) & conn.\ \% & Val-Cit \% & usable-3D \% & 95\,\% CI \\
+\midrule
+Curriculum (baseline)          & 20.8 & 6.6 & 8.6  & [6.4,\,11.4] \\
+Multi-site (base)              & 40.0 & 4.4 & 4.8  & [3.2,\,7.0] \\
+$\lambda{=}0.01$ (prev.\ best) & 33.2 & 9.4 & 10.2 & [7.8,\,13.2] \\
+$\lambda{=}0$ control          & 15.4 & 4.4 & 4.6  & [3.1,\,6.8] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Novelty.}
+Across 1000 generations there were \textbf{zero} near-copies (Tanimoto $>0.85$ to any training L/P), and
+the median Tanimoto to the training set was 0.44--0.59 --- novel molecules on a shared payload scaffold,
+not memorization.
+
+% =====================================================================
+\section{Chemical-validity gate specification}
+\label{si:gate}
+
+The gate runs fail-closed in two levels (\S\,3.2).
+
+\paragraph{Level A --- ligand (RDKit\cite{rdkit}).}
+\begin{enumerate}[leftmargin=1.4em,itemsep=1pt,topsep=2pt]
+\item Sanitizable (valence-consistent Kekul\'e/aromaticity perception).
+\item Single connected component (rejects the diffusion fragmentation that dominates raw output).
+\item No undefined stereocenters on linker or payload (the coordinate$\rightarrow$SDF conversion strips
+stereochemistry; canonical payload stereochemistry is reimposed by CIP-driven iterative chiral-tag
+assignment and verified from the 3D coordinates).
+\item Correct maleimide vs.\ thiosuccinimide oxidation state (open maleimide \ce{O=C1C=CC(=O)N1}
+distinguished from the conjugated thiosuccinimide).
+\item Basic drug-likeness (molecular weight, logP, rotatable bonds, TPSA within ranges).
+\end{enumerate}
+
+\paragraph{Level B --- conjugate topology.}
+A text-level parse of the assembled GROMACS topology enforces a per-atom maximum-valence table (carbon
+$\leq$4, sulfur $\leq$2 for thioether, etc.). This is the guard that auto-catches the over-valent
+conjugation carbon of \S\,4.4 and the hypervalent-sulfur defect (a retained cysteine thiol proton) ---
+both of which pass a distance-only check, because a harmonic bond holds its length regardless of valence.
+The lesson (Table~2, main text): validate the reacting atom's bond \emph{count and type}, not just the
+new bond's \emph{length}.
+
+% =====================================================================
+\section{Why the AMM potency oracle does not rank linkers}
+\label{si:amm}
+
+The AMM classifier\cite{mslati2026} predicts whether an ADC is cytotoxic below a 10\,nM threshold from a
+2D conjugate representation plus biological context. It does not rank the generated linkers, for two
+compounding reasons. (i)~\textbf{Label saturation}: a potent payload (MMAE) on an amplified antigen (HER2)
+at a 10\,nM threshold is predicted active for essentially any reasonable linker. (ii)~\textbf{No
+applicability-domain check}: after a silent checkpoint-loading defect was corrected (a vestigial untrained
+head had to be dropped and only the attention keys remapped; diagnosed via BatchNorm tracking counters),
+the genuine model still scores chemically irrelevant ``junk'' control molecules (aspirin, caffeine,
+ethanol) as active --- their molecular features are out-of-distribution, propagating to extreme logits.
+AMM is therefore usable only as a coarse plausibility filter (real-vs-junk), never as a fine-grained
+ranker. The discriminating signal --- linker-driven plasma stability --- was never in its training data.
+
+% =====================================================================
+{\small
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+}
+
+\end{document}

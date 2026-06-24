@@ -1,0 +1,14 @@
+# LaTeX build artifacts (regenerable via latexmk; see tex/README_compile.md)
+tex/*.aux
+tex/*.log
+tex/*.fls
+tex/*.fdb_latexmk
+tex/*.bbl
+tex/*.blg
+tex/*.out
+tex/*.toc
+tex/*.synctex.gz
+tex/build*.log
+tex/pass_final.log
+
+# Keep: *.tex, *.bib, *.pdf (compiled manuscript), figures/, README_compile.md
