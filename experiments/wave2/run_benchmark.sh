@@ -59,8 +59,14 @@ for seed in $SEEDS; do
       rm -rf "$ck"; mkdir -p "$ck"; cp "$GEOM_CKPT" "$ck/${split}_epoch=00.ckpt"
       ( cd "$DL" && python train_difflinker.py --config "$cfg" --device "$DEVICE_TRAIN" )
     fi
-    best=$(ls -t "$ck"/*.ckpt | grep -v 'epoch=00.ckpt' | head -1 || true)
-    [ -z "$best" ] && { echo "!! $split produced no trained checkpoint (training failed?) — aborting"; exit 1; }
+    # Select the checkpoint by GENERATED CONNECTIVITY (not latest/val-loss):
+    # connectivity peaks early in fine-tuning then degrades (§25.7), so `ls -t`
+    # picks an over-trained checkpoint. Probe once at the operational size 20.
+    best=$(python "$ADC/experiments/wave1/pick_checkpoint.py" --ckpt-dir "$ck" \
+        --fragments "$GEN_INPUT" --linker-size 20 --n 64 --k 6 \
+        --difflinker-root "$DL" --device "$DEVICE_GEN" 2>>"$OUT/pick_${split}.log")
+    [ -z "$best" ] && { echo "!! $split: checkpoint selection failed (see $OUT/pick_${split}.log) — aborting"; exit 1; }
+    echo "selected checkpoint for $split: $best"
     for sz in $SIZES; do
       gdir="$OUT/${name}_s${seed}_sz${sz}/gen"; mkdir -p "$gdir"
       ( cd "$DL" && python generate.py --fragments "$GEN_INPUT" --model "$best" \

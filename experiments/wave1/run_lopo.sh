@@ -49,7 +49,11 @@ train_and_gen () {
   else
     echo "  ($split already trained — reusing checkpoints)"
   fi
-  local best; best=$(ls -t "$ck"/*.ckpt | grep -v 'epoch=00.ckpt' | head -1)
+  # select checkpoint by generated connectivity, not latest/val-loss (§25.7)
+  local best; best=$(python "$ADC/experiments/wave1/pick_checkpoint.py" --ckpt-dir "$ck" \
+      --fragments "$input_sdf" --linker-size "$LINKER_SIZE" --n 64 --k 6 \
+      --difflinker-root "$DL" --device "$DEVICE_GEN" 2>>"$OUT/pick_${label}.log" || true)
+  [ -z "$best" ] && { echo "!! $label: checkpoint selection failed"; return 1; }
   local gdir="$OUT/$label/gen"; mkdir -p "$gdir"
   ( cd "$DL" && python generate.py --fragments "$input_sdf" --model "$best" \
       --linker_size "$LINKER_SIZE" --output "$gdir" --n_samples "$N_SAMPLES" --device "$DEVICE_GEN" )

@@ -57,8 +57,11 @@ for cfgdir in "$SPLITS"/$SPLIT_GLOB; do
   #    (patience 20) that is ~20 epochs past the val-loss minimum, which is fine
   #    for generation quality. If your ModelCheckpoint filenames encode val loss,
   #    refine this to pick the minimum instead.
-  best=$(ls -t "$ck"/*.ckpt | grep -v "epoch=00.ckpt" | head -1 || true)
-  [ -z "$best" ] && best="$ck/${split}_epoch=00.ckpt"
+  # select checkpoint by generated connectivity, not latest/val-loss (§25.7)
+  best=$(python "$ADC/experiments/wave1/pick_checkpoint.py" --ckpt-dir "$ck" \
+      --fragments "$GEN_INPUT" --linker-size "$LINKER_SIZE" --n 64 --k 6 \
+      --difflinker-root "$DL" --device "$DEVICE_GEN" 2>>"$OUT/pick_${split}.log" || true)
+  [ -z "$best" ] && { echo "!! $split: checkpoint selection failed (see $OUT/pick_${split}.log)"; continue; }
   echo "generating from: $best"
 
   # 4. generate on the FIXED payload input (same input for every split)
