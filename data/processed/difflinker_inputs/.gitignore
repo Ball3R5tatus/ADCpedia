@@ -1,0 +1,3 @@
+# Regenerable DiffLinker generation inputs (rebuild via difflinker_export /
+# experiments/wave1/export_lopo_inputs.py). Keep only the lopo map.
+*.sdf

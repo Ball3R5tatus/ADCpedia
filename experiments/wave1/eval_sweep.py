@@ -193,6 +193,64 @@ def cmd_plot(args):
     return 0
 
 
+def cmd_plot_lopo(args):
+    """Grouped bars: held-out (LOPO model) vs in-distribution (full model) per
+    payload class. Expects results rows labelled 'held_<class>' and
+    'indist_<class>' (see run_lopo.sh)."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    rows = {r['label']: r for r in csv.DictReader(open(args.results))}
+    classes = sorted({lbl.split('_', 1)[1] for lbl in rows
+                      if lbl.startswith(('held_', 'indist_'))})
+    if not classes:
+        print('!! no held_/indist_ rows in results', file=sys.stderr)
+        return 1
+    metric = args.metric  # usable_pct or valcit_pct
+    held = [float(rows[f'held_{c}'][metric]) if f'held_{c}' in rows else 0.0 for c in classes]
+    indist = [float(rows[f'indist_{c}'][metric]) if f'indist_{c}' in rows else 0.0 for c in classes]
+
+    import numpy as np
+    x = np.arange(len(classes)); w = 0.38
+    fig, ax = plt.subplots(figsize=(max(7, 1.4 * len(classes)), 4.4))
+    ax.bar(x - w / 2, indist, w, color='#0072B2', label='in-distribution (full model)')
+    ax.bar(x + w / 2, held, w, color='#C2570C', label='held-out (LOPO model)')
+    ax.set_xticks(x); ax.set_xticklabels(classes, rotation=20, ha='right')
+    ax.set_ylabel(f'{metric} (%)')
+    ax.set_title('LOPO generalization: held-out vs in-distribution per payload class\n'
+                 '(comparable bars = generalizes; collapse = interpolates)')
+    ax.legend(); ax.grid(alpha=0.3, axis='y')
+    fig.tight_layout()
+    for ext in ('png', 'pdf'):
+        fig.savefig(os.path.splitext(args.out)[0] + '.' + ext, dpi=150, bbox_inches='tight')
+    print(f'wrote {os.path.splitext(args.out)[0]}.png/.pdf  ({len(classes)} classes)')
+    return 0
+
+
+def cmd_table(args):
+    """Emit a markdown benchmark table from a results CSV (one row per config)."""
+    rows = sorted(csv.DictReader(open(args.results)), key=lambda r: r['label'])
+    if not rows:
+        print('!! empty results', file=sys.stderr)
+        return 1
+    cols = [('label', 'config'), ('n', 'n'), ('native_conn_pct', 'conn%'),
+            ('valcit_pct', 'ValCit%'), ('urea_pct', 'urea%'),
+            ('usable_pct', 'usable%'), ('median_novelty_tanimoto', 'med.Tan')]
+    lines = ['| ' + ' | '.join(h for _, h in cols) + ' | usable 95% CI |',
+             '|' + '|'.join('---' for _ in cols) + '|---|']
+    for r in rows:
+        ci = f"[{r.get('wilson_lo','')}, {r.get('wilson_hi','')}]"
+        lines.append('| ' + ' | '.join(str(r.get(k, '')) for k, _ in cols) + f' | {ci} |')
+    md = '\n'.join(lines)
+    print(md)
+    if args.out:
+        with open(args.out, 'w') as fh:
+            fh.write('# Wave-2 benchmark (3D-strict gate, Wilson 95% CI)\n\n' + md + '\n')
+        print(f'\nwrote {args.out}', file=sys.stderr)
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog='eval_sweep')
     sub = ap.add_subparsers(dest='cmd', required=True)
@@ -209,6 +267,16 @@ def main(argv=None):
     pp.add_argument('--results', required=True)
     pp.add_argument('--out', required=True)
     pp.set_defaults(func=cmd_plot)
+    pl = sub.add_parser('plot-lopo', help='held-out vs in-distribution per class')
+    pl.add_argument('--results', required=True)
+    pl.add_argument('--out', required=True)
+    pl.add_argument('--metric', default='usable_pct',
+                    help='usable_pct | valcit_pct | native_conn_pct')
+    pl.set_defaults(func=cmd_plot_lopo)
+    pt = sub.add_parser('table', help='emit a markdown benchmark table from results')
+    pt.add_argument('--results', required=True)
+    pt.add_argument('--out', default=None, help='optional .md output path')
+    pt.set_defaults(func=cmd_table)
     args = ap.parse_args(argv)
     return args.func(args)
 

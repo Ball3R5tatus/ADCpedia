@@ -250,9 +250,28 @@ def build_lopo(classes, seed, src_dir, train_prefix, val_prefix):
           'and score with diffusion.gate. The held-out class is absent from training by construction.')
 
 
+def build_full(seed, src_dir, train_prefix, val_prefix):
+    """Interpolation baseline: the unfiltered source trio as geom_full_s<seed>.
+    Used as the in-distribution reference the LOPO (held-out) arm is compared
+    against — same recipe, all classes present."""
+    header, rows, frag, link = read_trio(src_dir, train_prefix)
+    rng = random.Random(seed)
+    order = list(range(len(rows)))
+    rng.shuffle(order)
+    split = f'full_s{seed}'
+    out_dir = os.path.join(OUT_ROOT, split)
+    tp = f'geom_{split}_train'
+    write_trio(out_dir, tp, header, rows, frag, link, order)
+    vp = link_shared_val(out_dir, split, src_dir, val_prefix)
+    cfg = emit_config(out_dir, split, tp, vp)
+    detail = f'all_classes n={len(rows)}'
+    print(f'[full] -> {split}: {detail}  dir={out_dir}')
+    record(split, 'full', tp, len(rows), detail, cfg)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog='diffusion.data.build_split',
-                                 description='Build Pareto / LOPO DiffLinker training splits.')
+                                 description='Build Pareto / LOPO / full DiffLinker training splits.')
     ap.add_argument('--src-dir', default=SRC_DIR, help='source augmented trio dir')
     ap.add_argument('--train-prefix', default='adc_cys_train')
     ap.add_argument('--val-prefix', default='adc_cys_val')
@@ -267,6 +286,9 @@ def main(argv=None):
     pl.add_argument('--classes', required=True, help='comma-sep payload_class names to hold out')
     pl.add_argument('--seed', type=int, default=0)
 
+    pf = sub.add_parser('full', help='unfiltered baseline (in-distribution reference for LOPO)')
+    pf.add_argument('--seed', type=int, default=0)
+
     args = ap.parse_args(argv)
     if args.cmd == 'pareto':
         fr = [int(x) for x in args.fractions.split(',') if x.strip()]
@@ -274,6 +296,8 @@ def main(argv=None):
     elif args.cmd == 'lopo':
         cls = [x.strip() for x in args.classes.split(',') if x.strip()]
         build_lopo(cls, args.seed, args.src_dir, args.train_prefix, args.val_prefix)
+    elif args.cmd == 'full':
+        build_full(args.seed, args.src_dir, args.train_prefix, args.val_prefix)
 
 
 if __name__ == '__main__':

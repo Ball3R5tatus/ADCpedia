@@ -1,0 +1,7 @@
+payload_class,payload_name,input_sdf,anchors,n_payload_atoms,anchor_reason
+PBD_anthracycline,PNU-159682 derivative,data/processed/difflinker_inputs/lopo_PBD_anthracycline.sdf,"49,53",52,primary_aliphatic_amine
+auristatin,MMAE,data/processed/difflinker_inputs/lopo_auristatin.sdf,"72,81",80,primary_aliphatic_amine
+camptothecin,SN-38,data/processed/difflinker_inputs/lopo_camptothecin.sdf,"4,37",36,aliphatic_hydroxyl
+duocarmycin,Seco-DUBA,data/processed/difflinker_inputs/lopo_duocarmycin.sdf,"2,52",51,secondary_aliphatic_amine
+eribulin,Eribulin,data/processed/difflinker_inputs/lopo_eribulin.sdf,"51,53",52,primary_aliphatic_amine
+maytansinoid,DM4,data/processed/difflinker_inputs/lopo_maytansinoid.sdf,"51,54",53,aliphatic_hydroxyl
