@@ -28,8 +28,8 @@ GEN_INPUT=$ADC/data/processed/difflinker_inputs/MMAE_MC-Val-Cit-PAB_0.sdf
 N_SAMPLES=500
 DEVICE_TRAIN=gpu
 DEVICE_GEN=cuda
-SEEDS="0 1 2"
-SIZES="15 20 25 30"
+SEEDS="${SEEDS:-0 1 2}"
+SIZES="${SIZES:-15 20 25 30}"
 # config label -> pareto split base (without seed)
 declare -A CONFIG=( [cysonly]=pareto_f100 [multisite]=pareto_f066 [curriculum]=pareto_f085 )
 # -------------------------------------------------------------------

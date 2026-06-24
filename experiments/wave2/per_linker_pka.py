@@ -89,29 +89,41 @@ def parse_pka(pka_path):
 
 
 def near_residues(pdb, segid, resid, cutoff):
-    """Residues with any atom within cutoff of the conjugation Cys SG."""
-    try:
-        import warnings
-        warnings.filterwarnings('ignore')
-        import numpy as np
-        import MDAnalysis as mda
-    except Exception:
-        return None
-    u = mda.Universe(pdb)
-    # tolerate single-chain merged complexes: fall back to resid-only if segid empty
-    sel_sg = u.select_atoms(f'segid {segid} and resid {resid} and name SG')
-    if len(sel_sg) == 0:
-        sel_sg = u.select_atoms(f'resid {resid} and name SG')
-    if len(sel_sg) == 0:
+    """Residues with any atom within cutoff of the conjugation Cys SG.
+
+    Pure-Python fixed-width PDB parse (no MDAnalysis dependency): finds the SG of
+    the target resid (preferring chain==segid, else any chain), then returns
+    {(resname, resid, chain): min_dist_to_SG} for residues within cutoff."""
+    atoms = []   # (resname, resid, chain, x, y, z, name)
+    sg = None
+    with open(pdb) as fh:
+        for ln in fh:
+            if ln[:6] not in ('ATOM  ', 'HETATM'):
+                continue
+            try:
+                name = ln[12:16].strip()
+                rn = ln[17:20].strip()
+                ch = ln[21].strip() or '?'
+                ri = int(ln[22:26])
+                x, y, z = float(ln[30:38]), float(ln[38:46]), float(ln[46:54])
+            except ValueError:
+                continue
+            atoms.append((rn, ri, ch, x, y, z, name))
+            if ri == resid and name == 'SG':
+                # prefer the SG on the requested chain, but accept any if needed
+                if sg is None or ch == segid:
+                    sg = (x, y, z)
+    if sg is None:
         return {}
-    sg = sel_sg.positions[0]
-    sel = u.select_atoms(f'byres (around {cutoff} (resid {resid} and name SG))')
+    c2 = cutoff * cutoff
     res = {}
-    for a in sel.atoms:
-        key = (a.resname, int(a.resid), getattr(a, 'chainID', a.segid) or '?')
-        d = float(np.linalg.norm(a.position - sg))
-        if key not in res or d < res[key]:
-            res[key] = round(d, 2)
+    for rn, ri, ch, x, y, z, _ in atoms:
+        d2 = (x - sg[0]) ** 2 + (y - sg[1]) ** 2 + (z - sg[2]) ** 2
+        if d2 <= c2:
+            key = (rn, ri, ch)
+            d = round(d2 ** 0.5, 2)
+            if key not in res or d < res[key]:
+                res[key] = d
     return res
 
 
@@ -137,9 +149,14 @@ def main(argv=None):
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     workdir = os.path.dirname(os.path.abspath(args.out))
     rows = []
+    GENERIC = {'complex', 'system', 'md', 'prod', 'em', 'npt', 'nvt', 'receptor'}
     for pdb in args.pdbs:
-        label = os.path.basename(os.path.dirname(os.path.abspath(pdb))) or \
-            os.path.splitext(os.path.basename(pdb))[0]
+        stem = os.path.splitext(os.path.basename(pdb))[0]
+        parent = os.path.basename(os.path.dirname(os.path.abspath(pdb)))
+        # use the file stem when it's distinctive (complex_0, complex_1, ...);
+        # fall back to the parent dir for generic per-candidate filenames
+        # (md/runs/cand_4/complex.pdb -> cand_4)
+        label = parent if stem.lower() in GENERIC else stem
         try:
             pka_path = run_propka(propka, pdb, workdir)
             pka = parse_pka(pka_path)

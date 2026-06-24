@@ -4114,6 +4114,22 @@ Exports one representative held-out payload per viable class (auristatin←MMAE,
 - **Per-linker local-pKa pilot** (`experiments/wave2/per_linker_pka.py`): the only evaluation observable that **varies per linker** (the Cys214 site is shared, §20.13 returned a site-level NULL). Runs **PROPKA** on each *conjugated* complex and ranks residues by ΔpKa across linkers. **Runnable** — PROPKA is at `/usr/bin/propka`; SUMMARY-section-only parser, non-titratable 99.99 sentinels filtered, sane pKa range 1.6–15.4. Caveats (documented, `experiments/wave2/README.md`): needs the MDAnalysis env for site-filtering + *conjugated-complex* PDBs (the apo receptor reproduces the §20.13 null); it is a hypothesis generator, not a validated predictor (no stability labels, §21.2).
 - **Constant-pH MD (the rigorous version): BLOCKED on toolchain.** The project's `gmx_mpi` (/home/galeito/gromacs-mpi) has no constant-pH / λ-dynamics support; CpHMD needs a CpHMD-capable GROMACS build. The protocol is documented (titratable maleimide microenvironment + proximal base; ≥100–500 ns per linker; still proxies-only, not the bond-breaking reaction = QM/MM). Until that build exists, the static PROPKA pilot is the runnable surrogate.
 
+### §25.6 — Wave 2 EXECUTED: per-linker static pKa is non-discriminative (NULL, n=15 linkers) (2026-06-24)
+
+Ran the per-linker PROPKA pilot for real on the **15 built covalent complexes** (`complexes/complex_*.pdb`, one distinct generated linker each, conjugated at Cys214). PROPKA = `/usr/bin/propka`, ~3.4 s/complex; `per_linker_pka.py` near-site filter rewritten to pure-Python PDB parsing (no MDAnalysis dep). Titratable residues within 12 Å of the Cys214 SG and their pKa spread **across all 15 linkers**:
+
+| residue | n | min | max | **ΔpKa** | mean |
+|---|---:|---:|---:|---:|---:|
+| TYR186 | 15 | 12.2 | 12.8 | **0.52** | 12.4 |
+| GLU213 | 15 | 4.5 | 4.9 | **0.35** | 4.6 |
+| ASP122 | 15 | 3.9 | 4.2 | **0.34** | 3.9 |
+| LYS136 | 15 | 10.0 | 10.1 | 0.11 | 10.1 |
+| GLU219 | 15 | 4.5 | 4.5 | 0.02 | 4.5 |
+| ARG211 | 15 | 12.7 | 12.8 | 0.01 | 12.7 |
+| CYS214 | 15 | 9.4 | 9.4 | **0.00** | 9.4 |
+
+**VERDICT: NULL.** The near-site environment recovered is exactly §20.13's (acidic: Glu213/Asp122 proximal, Arg211 the only base, beyond range; Cys214 pKa 9.4). Across 15 distinct generated linkers the conjugation-site residue pKas shift by **≤0.52** (Cys214 itself by 0.00) — within PROPKA's own error and far too small to rank linkers. This **confirms §21 from the per-linker angle**: a *static* structural descriptor does not capture linker-discriminating chemistry, because the linker barely perturbs the protein titration environment at the shared Cys214 site. The lever that could discriminate (dynamic protonation during ring-opening) needs constant-pH MD — **still blocked on a CpHMD-capable GROMACS build** (§25.4). So the cheap surrogate returns a clean negative; the rigorous version is a toolchain commitment, not a quick win. (Caveat: single static built-pose per linker, pre-MD geometry; a dynamic ensemble might widen ΔpKa, but the static null is consistent with every other ranking attempt in this project.)
+
 ### §25.5 Net state after this session
 
 Generation pipeline is now reproducible and version-controlled: a frozen dataset contract, a versioned+tested validity gate (the durable deliverable), a quantified failure taxonomy (disconnection is the wall, valence is a non-issue), and ready-to-run Pareto / LOPO / benchmark harnesses + a runnable per-linker pKa pilot. **Genuinely-blocking remainders:** the GPU trainings (user-executed) and a CpHMD-capable GROMACS build. The adversarial-validation discipline held throughout (gate 23/23, every no-GPU artifact validated on real data, headline MD numbers re-verified against raw trajectories).
