@@ -4003,3 +4003,117 @@ Per the fixed reading: vedotin is neither low-and-tight (<1.5 A → would mean t
 **Caveats (not reassurance).** (i) Cys214 is a **PROXY** — 1N8Z lacks the true brentuximab-vedotin IgG hinge Cys, so this characterises the *modeling* site, not the clinical Adcetris site; the real hinge microenvironment differs and is not captured. (ii) The dynamic contacts depend on the arbitrary single-conformer-derived initial linker pose (same fragility as the §20.8 self-RMSD). (iii) The static site analysis is candidate-independent (all candidates share Cys214); only the dynamic linker excursions differ by linker — so this annotates the *site*, it does not rank candidates.
 
 **Net.** Lever-(b) groundwork delivered: the modeling proxy site is **not a strong self-stabilising environment** by the Sebastian-Perez criterion (acidic SG neighbourhood, no persistent proximal base, only transient flexible-linker basic contacts). It does not rescue a ranking (shared site). A quantitative stability prediction would still require constant-pH MD + the reactive deconjugation treatment (lever **c**), both out of scope.
+
+---
+
+## §21 — External review assessment + strategic direction (referee-of-the-referee, 2026-06-22)
+
+*An external LLM-pass review of the project was solicited (faithful to the master: it correctly recovered 9-10/100 usable, Tanimoto 0.44-0.58, p=0.157, the pentavalent-C bug). Its thesis — "the bottleneck is no longer generation but evaluation; MD and AMM cannot rank" — is correct **because it re-derives this document's own verdicts** (§20.6/§20.8/§20.9/§20.12). It is a good synthesis, not new insight, and it overclaims in three places that change the next decision. This section records the corrected reading and the resulting direction. Cross-cutting, NOT a candidate entry.*
+
+### §21.1 Three corrections to the external reading
+
+1. **"MD cannot rank linkers" is an over-generalisation.** What is proven: (a) the *payload self-RMSD* metric is **non-discriminative** — shown decisively by the vedotin positive control (an FDA linker is statistically indistinguishable from the generated candidates, §20.12); (b) at N=3 no separation survives noise (§20.8). But §20.8 itself flags df=2.4 ≈ **no statistical power** — the test can only catch a *large* effect. The defensible claim is narrower and stronger: *"this observable, at this cost, does not separate generated linkers from each other or from a clinical gold standard, and the chemistry that would separate them (deconjugation) is absent from the model by construction."* **The positive control carries the argument; the underpowered N=3 does not.**
+
+2. **Site-microenvironment descriptors rank SITES, not LINKERS** (the external review's preferred "Option 4" is structurally incapable of solving the ranking problem it identifies). All candidates share Cys214 → a site descriptor returns the *same* value for every candidate (already stated §20.7, §20.13). "Site Microenvironment Controls ADC Stability" answers *"is Cys214 a good site?"* — and §20.13 already returned a NULL (not strongly self-stabilising, no persistent proximal base) on a **proxy** site that is not even the real Adcetris hinge Cys. It cannot rank linkers.
+
+3. **"AMM 3D" inherits the same defect for a different reason.** AMM does not fail to rank because it is 2D — it fails because its **label is saturated**: MMAE on amplified HER2 at a 10 nM cytotoxicity threshold is "active" for essentially any reasonable linker (§19.20.4). The discriminating signal (linker-driven plasma stability / PK) was never in AMM's training data. Adding 3D geometry to a model whose *label* does not contain the answer cannot manufacture it. **The bottleneck is the label, not the dimensionality.**
+
+**Meta-finding the review undersold:** the strongest through-line of the whole project is *"a surface metric masks a structural error, caught only by adversarial skepticism"* — AMM checkpoint silently broken under `strict=False` (§19.21-23), covalent topology distance-OK but valence-wrong (HG §19.28, pentavalent C §20.10), stereo silently lost (§19.24). This is more robust than any ranking claim and is a publishable perspective in itself.
+
+### §21.2 The data verdict (the operative question)
+
+The level of claim sets the data requirement:
+
+- **To assert "I predict ADC stability": experimental labels are mandatory** (% payload retained / deconjugation t½ / plasma stability, with known site + linker). Per the lit-database master §6 caveat 6, that data is **~5 genuine antibody-ADC stability papers, fragmented by system AND matrix, figure-locked, NOT poolable** → a stability model cannot be trained from public data. Hard wall.
+- **To publish the methods-critique paper: zero new data.** The bug→fix→replicas→FDA-control arc is complete (§19.28-§20.12). This is the only fully-funded paper currently in hand.
+- **Descriptors (SASA, local charge, Lys proximity…): computable with zero data, but unvalidatable without labels** → a hypothesis generator, not a predictor, and on a shared proxy site it cannot even rank the candidates. Do not present a descriptor panel as "prediction."
+
+Data sources, ranked by realism: (1) **literature curation** of 10-30 ADCs with known antibody/site/linker + a stability readout → qualitative *trends* only (matrices/systems don't pool), mined from `DOWNLOAD_QUEUE.md` (191 ranked papers); (2) the true gold standard — a **controlled series** (one antibody, one payload, linker varied systematically, plasma stability measured) — exists essentially only inside pharma, which is *why the problem is open*; (3) **wet-lab collaboration** for deconjugation assays (real unlock, not under our control); (4) **physics-computed surrogate labels** (retro-Michael / ring-opening barriers via QM or constant-pH MD) — real physics, no wet data, but partly circular for descriptor validation.
+
+### §21.3 Direction
+
+1. **Ship the negative-result + positive-control paper now** (external "Option 2"). Framing: *"fixed-bond MD payload RMSD is non-discriminative for ADC linkers — demonstrated against an FDA gold standard."* Done, defensible, rare, no data.
+2. **Stop spending GPU on longer MD of the same system.** The project's own evidence says the signal is not in the chosen physics; more ns do not add the reaction.
+3. **Treat data as THE gating reagent.** A meaningful stability score is limited by labels, not by cleverness. Either commit to literature curation (qualitative trends) or find a wet collaborator; do not build an unfalsifiable descriptor model.
+4. **One physics-only lever worth a small investment: constant-pH MD** (local pKa / protonation) — far more justified than more fixed-bond ns, and unlike static site descriptors it **varies per linker** via each maleimide's local solvation/electrostatics. It still omits bond-breaking — state it — but it is the cheapest move that adds chemistry the current model lacks.
+
+**Distinction to internalise:** ranking **sites** (needs site diversity: Cys214 vs Cys205 vs lysine; descriptors + structures suffice) and ranking **linkers at a fixed site** (needs deconjugation chemistry: reactive/constant-pH MD or experimental labels) are different problems. The project (and the external review) conflates them because every candidate sits on Cys214.
+
+## §22 — Strategic pivot: ship Paper 1, reopen the generation pipeline (2026-06-23/24)
+
+*A focused work session. Decision: **ship only the negative-result paper** (the generation/benchmark "Paper 2" ideas are not abandoned but are executed as engineering scaffolding, not gated on the paper). Then the generation pipeline was reopened against a 12-point external critique and turned from "we tried checkpoints" into reproducible, version-controlled tooling. Four commits on branch `diffusion-model`: `fdee171` (paper), `bafac47` (Wave 0), `b1e211f` (Wave 1 harness), `3648fc6` (LOPO arm + Wave 2).*
+
+### §22.1 The two-papers framing (decision)
+
+The 12-point critique correctly re-derived the project's own verdicts but proposed a generation-side benchmark as the next big block — while §21 had concluded the bottleneck is **evaluation, data-bound**. Resolution: there are **two separable papers**, and Paper 2 must not delay Paper 1.
+- **Paper 1 (in hand, ship now):** the negative result + adversarial-validation discipline + FDA positive control. Canonical = `paper/tex/manuscript.tex` (see §23).
+- **Paper 2 (generation/methods, unwritten):** Pareto frontier, the data wall, the structural ceiling, leave-one-payload-class-out generalization, the validity gate as a tool, the failure-mode taxonomy. The Wave 0/1/2 tooling (§24–§25) is its substrate.
+
+### §22.2 Reordered roadmap (and what stays de-prioritized)
+
+Priority for the generation side, in order: (1) dataset contract/manifest; (2) leave-one-payload-class-out (the only experiment that answers "generalization vs interpolation", to which the project has no answer); (3) dense Pareto frontier; (4) gate as a versioned/tested tool; (5) failure-mode taxonomy; (6) constant-pH MD as the one per-linker physics lever; (7) scoped multi-seed benchmark (a *confirmation* engine, not discovery — Finding 9). **De-prioritized / refuted as a move:** a bond-order / valence post-processor — the §24.3 taxonomy proves valence kills only ~1.6 % of candidates, so it would fix almost nothing; connectivity (the real wall) needs an architecture change, not post-processing. MST closure and MD self-RMSD ranking remain off (§19.16, §20.6).
+
+## §23 — Paper 1 close-out (negative-result manuscript) (2026-06-23, commit `fdee171`)
+
+*The paper was found ~90 % done, not "to be written": `paper/tex/manuscript.tex` already compiles to PDF with 15 real refs, Tables 1–3 and Figs 1–7 assembled, 0 undefined refs, and Hazem Mslati already co-author #2. `paper/manuscript.md` (11 `[ref]`, placeholder tables) is a STALE earlier draft — neutralised to a pointer stub.*
+
+### §23.1 Edits made (only real gaps)
+
+1. **cand_1/cand_8 valence-bug consistency (§4.3).** The paper claims "all four lead candidates grossly stable", but cand_1/cand_8 were built with the §20.10 pentavalent-C topology. Resolution chosen = a one-sentence **invariance** statement (no re-run): gross observables (C–SG harmonic distance, per-domain Cα RMSD, DSSP) are determined away from the ligand junction and are invariant to its valence; only the payload internal self-RMSD was corrupted, and the discrimination analysis is already restricted to the valence-corrected cand_4/cand_5 + vedotin control.
+2. **Config framing (§3.1) + motif range.** Clarified the two fine-tunes (cys-only 43 L/Ps vs multi-site 73) and that the MD candidates came from the cysteine-line checkpoint; reconciled the abstract/§4.1 motif range "10–69 %" → **"10–81 %"** to match Table 1 (cys@60 urea = 81 %).
+3. **Supporting Information written** (`paper/tex/supplementary.tex`): dataset construction, fine-tune recipe + isfinite guard, the two tradeoffs + Pareto, the n=500 Wilson-CI re-baseline, the gate spec, AMM saturation. Resolves the two dangling "see SI" references. Both manuscript.pdf and supplementary.pdf compile clean (0 undefined refs).
+
+### §23.2 Cold-read verification (headline numbers re-checked vs `md/analysis/` raw data)
+
+Recomputed directly from the xvg/csv (nm→Å ×10): cand_4 N=3 self-RMSD **3.15 ± 0.96** (reps 3.5/2.1/3.9), cand_5 **4.33 ± 0.30**, vedotin **3.75 ± 0.54**, C–SG **1.81 Å** (all four), buggy values (1.21 / 4.26 / Rg 6.36 / 504 contacts) match `convergence_stats.csv`, per-domain LC/HC Cα RMSD match Table 3 exactly for all four candidates. **All headline numbers verified; no table corrections needed.** Remaining = admin only (affiliation #2, funding, repo/Zenodo URL); venue deferred (chemRxiv-ready as-is).
+
+## §24 — Wave 0: dataset contract, versioned gate, failure taxonomy (2026-06-24, commit `bafac47`)
+
+*This commit also brought the previously-**untracked** `src/diffusion/` package and `tests/` under version control (only `src/amm_adc/` had been tracked).*
+
+### §24.1 Frozen dataset manifest (`src/diffusion/data/build_manifest.py` → `data/processed/dataset_manifest.{csv,json}`)
+
+138 unique L/Ps, keyed on the exact **(linker_smiles, payload_smiles)** pair (the canonical name pair is NOT unique: only 67 distinct name pairs for 138 rows). 24 typed columns: normalized `payload_class` / `conjugation_class` / `linker_class`, anchors, spacer size, `stereo_defined`, `in_{cys,multisite}_trainset`. The typo'd site labels are folded (cystiene/Custeine/cystein/Cysteine?/Glutomine → cysteine/glutamine; azide/GalNAc/glycan → click). **Two findings:** (a) **9 payload classes have ≥5 examples** (auristatin 24, PBD_anthracycline 19, maytansinoid 18, duocarmycin 17, camptothecin 17, calicheamicin 14, taxane 14, eribulin 8, tubulysin 5) covering 136/138 → **leave-one-payload-class-out is feasible**; (b) **only 28/138 L/Ps have fully-defined stereo** (108 = no) — a data-quality reality LOPO/training inherit.
+
+### §24.2 Unified chemical-validity gate, versioned + tested (`src/diffusion/gate/`, v1.1.0)
+
+Consolidates `outputs/h4/eval_3dstrict.py` + `md/chem_validity_gate.py` into one CLI/importable tool (`gate_ligand`, `gate_topology_valence`, `gate_usable3d`, `gate_all`), behaviour byte-identical to the originals (native_connected = RAW perceived graph, **NO MST closure**). `tests/test_chem_gate.py`: **23 tests pass**. **v1.1.0 hardening (§19.28 gap closed):** Level-B now flags **`RETAINED-THIOL-H`** = any S–H bond in the conjugate topology. This catches the literal §19.28 bug (the conjugation sulfur kept its thiol proton → 3-coordinate S) which the degree test alone **missed** because 3 ≤ MAX_VAL['S']=6. MAX_VAL and the pentavalent-C (§20.10) logic are unchanged.
+
+### §24.3 Failure-mode taxonomy (`outputs/h4/failure_taxonomy/`) — the decisive generation finding
+
+Tabulated the per-stage gate flags across **3300 generated candidates** (rebaseline n=500 ×4 configs + per/ n=200 cohort + final_best), classifying each by its first-failed stage. Pooled result:
+
+| stage | not_parsed | **disconnected** | mmff_fail | no_adc_motif | usable |
+|---|---:|---:|---:|---:|---:|
+| % of 3300 | 0.0 | **70.8** | 0.45 | 21.0 | 7.8 |
+
+**Disconnection (70.8 %) is the wall.** Of the connected+MMFF-clean survivors, **73 % lack an ADC motif** (the second gate). Valence/MMFF failure is **negligible (1.6 %)**. Per-config: multi-site has the highest connectivity (40 %) but the worst motif loss (34.6 % die at no-motif) → lowest usable (4.8 %); h4_λ0.01 best (10.2 %); λ0 control worst (84.6 % disconnected) — direct evidence the connectivity objective works but is ceiling-bound. **Strategic consequence:** a bond/valence post-processor addresses ~1.6 % of losses → effectively pointless; the two real levers are connectivity (architecture / constrained sampling) and the motif/cysteine-fraction knob (the Pareto slider, §25.1).
+
+## §25 — Wave 1 harness + LOPO turn-key + Wave 2 scaffolding (2026-06-24, commits `b1e211f`, `3648fc6`)
+
+*All no-GPU parts validated on real data; the DiffLinker trainings themselves are GPU + user-executed (`~/tools/DiffLinker/train_difflinker.py --config <cfg> --device gpu`, env `difflinker_gpu`; ZincDataset auto-builds the `.pt` from the `geom_*` trio).*
+
+### §25.1 Split builder (`src/diffusion/data/build_split.py`) — Pareto / LOPO / full
+
+Resamples/filters the multi-site augmented trio (`difflinker_trainset_v3_multi_site_aug/adc_cys_*`, 1240 train rows = 820 cys/420 non = 66.1 %), keeping table/frag/link **index-aligned 1:1**, and emits `geom_<split>_{train,val}` trios + cloned fine-tune YAMLs into `data/processed/splits/`.
+- **`pareto`** — cysteine-fraction sweep at **fixed total size (1240)** so compute is constant; pre-balances instead of WeightedRandomSampler (**avoids the §19.13 VRAM death-spiral**). Verified: 50/66/75/85/100 % land exactly; the 66 % point = the natural multi-site mix (the prior Pareto anchor).
+- **`lopo`** — leave-one-payload-class-out via the manifest's payload_class. **Zero held-out-class leakage verified.** Viable held-out classes (≥100 augmented train rows): auristatin (240), camptothecin (220), maytansinoid (220), PBD_anthracycline (200), duocarmycin (140), eribulin (100); taxane (20)/calicheamicin (40) too thin → "untestable at current data scale" (itself the data-wall finding).
+- **`full`** — unfiltered baseline = the in-distribution reference the LOPO held-out arm is compared against.
+
+### §25.2 Evaluation + figures (`experiments/wave1/eval_sweep.py`)
+
+Scores a generation dir with `src/diffusion/gate` (identical usable-3D definition), aggregates conn%/ValCit%/usable% + **Wilson 95 % CI** + Tanimoto novelty; modes: `eval` (append to results CSV), `plot` (Pareto frontier figure), `plot-lopo` (held-out vs in-distribution per class), `table` (markdown benchmark table). Verified: `eval` on a known gen subset reproduces the expected ~33 % conn; all figures/table render. Drivers: `experiments/wave1/run_wave1.sh` (Pareto), `experiments/wave1/run_lopo.sh` (LOPO), `experiments/wave2/run_benchmark.sh` (multi-seed ×size ×config + zero-shot). Protocol rigor follows Finding 9: n≥500, ≥3 seeds, Wilson CIs.
+
+### §25.3 LOPO turn-key inputs (`experiments/wave1/export_lopo_inputs.py`)
+
+Exports one representative held-out payload per viable class (auristatin←MMAE, camptothecin←SN-38, maytansinoid←DM4, duocarmycin←Seco-DUBA, eribulin←Eribulin, PBD_anthracycline←PNU-159682) as a DiffLinker input via `export_adc`, with chemically-sensible reactive-anchor detection (primary amine / hydroxyl / secondary amine) → `data/processed/difflinker_inputs/lopo_<class>.sdf` + `lopo_inputs_map.csv`. Validated (RDKit).
+
+### §25.4 Wave 2 — benchmark + the per-linker physics lever
+
+- **Benchmark** (`run_benchmark.sh` + `eval_sweep.py table`): the surviving configs (cys-only/multi-site/curriculum as Pareto-split proxies) + zero-shot, ×seeds ×sizes {15,20,25,30}, n≥500, Wilson CI → `outputs/wave2/benchmark.md`. A confirmation engine that pins the ~10/100 ceiling with overlapping CIs (the "no config dominates beyond noise" finding).
+- **Per-linker local-pKa pilot** (`experiments/wave2/per_linker_pka.py`): the only evaluation observable that **varies per linker** (the Cys214 site is shared, §20.13 returned a site-level NULL). Runs **PROPKA** on each *conjugated* complex and ranks residues by ΔpKa across linkers. **Runnable** — PROPKA is at `/usr/bin/propka`; SUMMARY-section-only parser, non-titratable 99.99 sentinels filtered, sane pKa range 1.6–15.4. Caveats (documented, `experiments/wave2/README.md`): needs the MDAnalysis env for site-filtering + *conjugated-complex* PDBs (the apo receptor reproduces the §20.13 null); it is a hypothesis generator, not a validated predictor (no stability labels, §21.2).
+- **Constant-pH MD (the rigorous version): BLOCKED on toolchain.** The project's `gmx_mpi` (/home/galeito/gromacs-mpi) has no constant-pH / λ-dynamics support; CpHMD needs a CpHMD-capable GROMACS build. The protocol is documented (titratable maleimide microenvironment + proximal base; ≥100–500 ns per linker; still proxies-only, not the bond-breaking reaction = QM/MM). Until that build exists, the static PROPKA pilot is the runnable surrogate.
+
+### §25.5 Net state after this session
+
+Generation pipeline is now reproducible and version-controlled: a frozen dataset contract, a versioned+tested validity gate (the durable deliverable), a quantified failure taxonomy (disconnection is the wall, valence is a non-issue), and ready-to-run Pareto / LOPO / benchmark harnesses + a runnable per-linker pKa pilot. **Genuinely-blocking remainders:** the GPU trainings (user-executed) and a CpHMD-capable GROMACS build. The adversarial-validation discipline held throughout (gate 23/23, every no-GPU artifact validated on real data, headline MD numbers re-verified against raw trajectories).
