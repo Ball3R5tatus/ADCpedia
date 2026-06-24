@@ -18,6 +18,7 @@
 #   bash experiments/wave1/run_wave1.sh
 # =====================================================================
 set -euo pipefail
+export WANDB_MODE="${WANDB_MODE:-disabled}"  # headless: no wandb key/TTY
 
 # ---- EDIT-ME paths -------------------------------------------------
 ADC=/home/galeito/ADCpedia

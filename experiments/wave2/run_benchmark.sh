@@ -20,6 +20,9 @@
 # =====================================================================
 set -euo pipefail
 
+# wandb requires an API key + TTY; disable it for headless training.
+export WANDB_MODE="${WANDB_MODE:-disabled}"
+
 # ---- EDIT-ME -------------------------------------------------------
 ADC=/home/galeito/ADCpedia
 DL=/home/galeito/tools/DiffLinker
@@ -56,7 +59,8 @@ for seed in $SEEDS; do
       rm -rf "$ck"; mkdir -p "$ck"; cp "$GEOM_CKPT" "$ck/${split}_epoch=00.ckpt"
       ( cd "$DL" && python train_difflinker.py --config "$cfg" --device "$DEVICE_TRAIN" )
     fi
-    best=$(ls -t "$ck"/*.ckpt | grep -v 'epoch=00.ckpt' | head -1)
+    best=$(ls -t "$ck"/*.ckpt | grep -v 'epoch=00.ckpt' | head -1 || true)
+    [ -z "$best" ] && { echo "!! $split produced no trained checkpoint (training failed?) — aborting"; exit 1; }
     for sz in $SIZES; do
       gdir="$OUT/${name}_s${seed}_sz${sz}/gen"; mkdir -p "$gdir"
       ( cd "$DL" && python generate.py --fragments "$GEN_INPUT" --model "$best" \
