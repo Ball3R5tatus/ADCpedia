@@ -22,6 +22,10 @@ set -euo pipefail
 
 # wandb requires an API key + TTY; disable it for headless training.
 export WANDB_MODE="${WANDB_MODE:-disabled}"
+# Cap the CUDA caching-allocator split size to avoid the §19.13 fragmentation
+# death-spiral ("N GiB reserved >> allocated") that OOMs multisite training
+# (batches of large lysine/click molecules) on the 16 GB card.
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:128}"
 
 # ---- EDIT-ME -------------------------------------------------------
 ADC=/home/galeito/ADCpedia
@@ -48,12 +52,19 @@ gate_eval () {  # gen_dir label train_table
       --train-smiles-csv "$3" --smiles-col molecule
 }
 
+# resumable: a label already in results.csv is skipped (so a re-run after a
+# crash/OOM continues where it stopped instead of redoing finished work)
+done_already () { grep -q "^$1," "$RESULTS" 2>/dev/null; }
+
 for seed in $SEEDS; do
   # ---- trained configs ----
   for name in "${!CONFIG[@]}"; do
     split="${CONFIG[$name]}_s${seed}"
     cfg="$SPLITS/$split/$split.yml"
     [ -f "$cfg" ] || { echo "!! missing $cfg (build the split) — skipping"; continue; }
+    # resumable: skip the whole config (incl. train+probe) if all sizes are done
+    alldone=1; for sz in $SIZES; do done_already "bench_${name}_sz${sz}_s${seed}" || alldone=0; done
+    [ "$alldone" = 1 ] && { echo "$name: all sizes already in results — skip"; continue; }
     ck="$DL/checkpoints/$split"
     if [ -z "$(ls "$ck"/*.ckpt 2>/dev/null | grep -v 'epoch=00' || true)" ]; then
       rm -rf "$ck"; mkdir -p "$ck"; cp "$GEOM_CKPT" "$ck/${split}_epoch=00.ckpt"
@@ -68,20 +79,24 @@ for seed in $SEEDS; do
     [ -z "$best" ] && { echo "!! $split: checkpoint selection failed (see $OUT/pick_${split}.log) — aborting"; exit 1; }
     echo "selected checkpoint for $split: $best"
     for sz in $SIZES; do
+      label="bench_${name}_sz${sz}_s${seed}"
+      done_already "$label" && { echo "  $label done — skip"; continue; }
       gdir="$OUT/${name}_s${seed}_sz${sz}/gen"; mkdir -p "$gdir"
       ( cd "$DL" && python generate.py --fragments "$GEN_INPUT" --model "$best" \
           --linker_size "$sz" --output "$gdir" --n_samples "$N_SAMPLES" --device "$DEVICE_GEN" )
-      gate_eval "$gdir" "bench_${name}_sz${sz}_s${seed}" "$SPLITS/$split/geom_${split}_train_table.csv"
+      gate_eval "$gdir" "$label" "$SPLITS/$split/geom_${split}_train_table.csv"
     done
   done
   # ---- zero-shot baseline (GEOM checkpoint, no fine-tune) ----
   for sz in $SIZES; do
+    label="bench_zeroshot_sz${sz}_s${seed}"
+    done_already "$label" && { echo "  $label done — skip"; continue; }
     gdir="$OUT/zeroshot_s${seed}_sz${sz}/gen"; mkdir -p "$gdir"
     ( cd "$DL" && python generate.py --fragments "$GEN_INPUT" --model "$GEOM_CKPT" \
         --linker_size "$sz" --output "$gdir" --n_samples "$N_SAMPLES" --device "$DEVICE_GEN" ) \
       || echo "  (zero-shot size $sz failed — expected at large ADC sizes, §12)"
     [ -n "$(ls "$gdir"/*.sdf 2>/dev/null)" ] && \
-      gate_eval "$gdir" "bench_zeroshot_sz${sz}_s${seed}" "$SPLITS/pareto_f100_s${seed}/geom_pareto_f100_s${seed}_train_table.csv"
+      gate_eval "$gdir" "$label" "$SPLITS/pareto_f100_s${seed}/geom_pareto_f100_s${seed}_train_table.csv"
   done
 done
 
