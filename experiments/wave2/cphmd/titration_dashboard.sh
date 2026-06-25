@@ -52,7 +52,11 @@ if [ -n "$start" ] && awk "BEGIN{exit !($donens>0)}"; then
   etah=$(awk "BEGIN{printf \"%.1f\",$remns/($rate/24)}")
 fi
 echo   "  overall: $donec/5 pH done  ->  ~${overall}%   |   done ${donens} ns, remaining ~${remns} ns"
-echo   "  avg rate ~${rate} ns/day  ->  ETA ~${etah} h   (NB: .out buffered/coarse; rate is a lower bound)"
+if [ "$eng" = "RUNNING" ]; then
+  echo "  avg rate ~${rate} ns/day  ->  ETA ~${etah} h   (NB: .out buffered/coarse; rate is a lower bound)"
+else
+  echo "  (engine not running — no live rate; start a titration to populate rate/ETA)"
+fi
 [ "$stalled" = 1 ] && { echo; echo "  *** WARNING: STALL DETECTED -> pmemd.cuda likely hung (GPU context conflict)."; echo "      Free the GPU of other CUDA contexts (auto_trading/gmx), kill + relaunch."; }
 ls $OUT/pka_gpu_pH*.dat >/dev/null 2>&1 && { echo "  ---- pKa (cphstats) ----"; for f in $OUT/pka_gpu_pH*.dat; do echo "   $(basename $f): $(grep -iE 'pKa|Pred' $f 2>/dev/null|head -2|tr '\n' ' ')"; done; }
 [ "$donec" -eq 5 ] && echo "  *** TITRATION COMPLETE ***"
