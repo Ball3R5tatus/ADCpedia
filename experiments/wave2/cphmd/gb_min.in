@@ -1,0 +1,4 @@
+GB minimization
+ &cntrl
+  imin=1, maxcyc=2000, ncyc=1000, ntb=0, igb=2, cut=30.0, ntpr=200,
+ &end
