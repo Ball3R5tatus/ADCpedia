@@ -14,7 +14,9 @@ echo   "=================================================================="
 echo   "  GB CpHMD GPU titration  -  cand_4   (pH 3->7, 2 ns each, GPU)"
 echo   "  $(date '+%H:%M:%S  %Y-%m-%d')"
 echo   "=================================================================="
-alive=$(pgrep -fc "pmemd.cuda" 2>/dev/null); [ "${alive:-0}" -gt 0 ] && eng="RUNNING" || eng="idle/done"
+# match the ACTUAL CpHMD run (pmemd + -cpin), not incidental mentions of the
+# string "pmemd.cuda" in other command lines (commit msgs, editors, this script).
+alive=$(pgrep -fc "pmemd.*-cpin" 2>/dev/null); [ "${alive:-0}" -gt 0 ] && eng="RUNNING" || eng="idle/done"
 echo   "  engine: pmemd.cuda ($eng)    GPU: $(nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader 2>/dev/null)"
 gprocs=""; for p in $(nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null); do gprocs="$gprocs $(ps -o comm= -p $p 2>/dev/null)($p)"; done
 echo   "  GPU contexts:${gprocs:- none}    (a 2nd CUDA context can hang pmemd.cuda under WSL)"
