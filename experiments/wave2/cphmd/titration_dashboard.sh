@@ -23,6 +23,11 @@ echo   "  GPU contexts:${gprocs:- none}    (a 2nd CUDA context can hang pmemd.cu
 echo   "------------------------------------------------------------------"
 printf "  %-4s %-10s %-13s %-9s %s\n" "pH" "status" "progress" "step" "out-age"
 donec=0; curfrac=0; stalled=0
+# mdinfo flushes the live NSTEP every ntpr (reliable); mdout (.out) is buffered
+# and lags badly -> for the active pH read step+freshness from mdinfo.
+mdi=$OUT/mdinfo
+mdistep=$(grep "NSTEP =" "$mdi" 2>/dev/null | tail -1 | sed -nE 's/.*NSTEP =[ ]*([0-9]+).*/\1/p' | head -1)
+mdiage=$(( $(date +%s) - $(stat -c %Y "$mdi" 2>/dev/null || date +%s) ))
 for ph in $PHS; do
   o=$OUT/gb_cph_gpu_pH${ph}.out
   if [ ! -f "$o" ]; then printf "  %-4s %-10s %-13s\n" "$ph" "pending" "$(bar 0)"; continue; fi
@@ -32,6 +37,8 @@ for ph in $PHS; do
     printf "  %-4s %-10s %-13s %-9s\n" "$ph" "DONE" "$(bar 100) 100%" "-"; donec=$((donec+1)); continue
   fi
   age=$(( $(date +%s) - $(stat -c %Y "$o" 2>/dev/null || date +%s) ))
+  # active pH while engine runs: trust mdinfo (fresh) over the buffered .out
+  if [ "$eng" = "RUNNING" ] && [ -n "$mdistep" ]; then step=$mdistep; age=$mdiage; fi
   pct=$(( step*100/NSTLIM ))
   if [ "$age" -gt "$STALL" ] && [ "$eng" = "RUNNING" ]; then
     printf "  %-4s %-10s %s %3d%% %-9s %ss  <-- STALL?\n" "$ph" "STALLED!" "$(bar $pct)" "$pct" "$step" "$age"; stalled=1
