@@ -1,0 +1,25 @@
+Cys(S) - ligand(c5) thioether junction parameters (PILOT estimates: amber CT-S
+thioether + gaff c5-ss; C-S r0=1.81 A = validated §20 dist; junction torsions
+set to zero barrier = geometry held by bonds/angles + molecular framework)
+MASS
+
+BOND
+S -c5  195.0   1.810
+
+ANGLE
+2C-S -c5   62.0   98.90
+CT-S -c5   62.0   98.90
+S -c5-c5   50.0  114.00
+S -c5-c    50.0  110.00
+S -c5-hc   43.0  109.50
+
+DIHE
+X -S -c5-X    3    0.500   0.000   3.000
+S -c5-c -n    1    0.000   0.000   2.000
+S -c5-c -o    1    0.000   0.000   2.000
+S -c5-c5-c    1    0.000   0.000   3.000
+S -c5-c5-hc   1    0.000   0.000   3.000
+
+IMPROPER
+
+NONBON
