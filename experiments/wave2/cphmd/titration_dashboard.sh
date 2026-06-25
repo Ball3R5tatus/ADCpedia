@@ -3,7 +3,7 @@
 # Usage:  bash /home/galeito/titration_dashboard.sh
 #   live: watch -n 30 bash /home/galeito/titration_dashboard.sh
 OUT=/home/galeito/ADCpedia/outputs/wave2/cphmd/cand_4
-LOG=/home/galeito/gb_gpu_titration.log
+LOG=/home/galeito/ADCpedia/outputs/wave2/cphmd/cand_4/titration.log
 PHS="3 4 5 6 7"; NSTLIM=1000000; NPER=2   # 2 ns/pH
 
 bar(){ local p=$1 n=$((p/10)) i; printf '['; for((i=0;i<10;i++)); do [ $i -lt $n ] && printf '#' || printf '.'; done; printf ']'; }
