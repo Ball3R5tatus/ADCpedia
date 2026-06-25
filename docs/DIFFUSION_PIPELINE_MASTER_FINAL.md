@@ -4138,6 +4138,25 @@ The seed-0 benchmark was launched on GPU (env `difflinker_gpu`, which has torch+
 
 **Fix (embodies Finding 9):** `experiments/wave1/pick_checkpoint.py` selects the checkpoint by **generated native-connectivity** (probe k≈6 checkpoints × n=64, gate-score, take the max), not by epoch or val-loss (a denoising loss ≠ generation quality). Wired into all three runners (run_benchmark / run_wave1 / run_lopo). **New methodological finding:** generation connectivity varies ~10× across adjacent fine-tune epochs at fixed val-loss → checkpoint selection MUST be on the generation metric, and the probe itself needs adequate n. The benchmark was relaunched with this selection.
 
+### §25.8 — Wave 2 benchmark EXECUTED: the 4×4 generation map (seed 0, n=500, Wilson 95% CI) (2026-06-25)
+
+The benchmark completed on the RTX 4080 after the §25.7 checkpoint-selection fix and the §25.7-followup OOM fix (`PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` to defeat the §19.13 multisite-training fragmentation death-spiral; runner made resumable so crashes/teardowns resume from `results.csv`). Checkpoints selected by generated connectivity (NOT latest/val-loss): cysonly **ep865**, curriculum **ep886**, multisite **ep904**. Native-connected % / usable-3D % (usable = native-connected + MMFF-valid + ADC motif), n=500 each:
+
+| config (best ckpt) | size 15 | size 20 | size 25 | size 30 |
+|---|---|---|---|---|
+| **multisite** (ep904) | 59.8 / 14.4 | **52.4 / 19.8** | 40.4 / 18.0 | 34.4 / 17.0 |
+| **cysonly** (ep865) | 57.2 / 3.6 | 44.8 / 8.8 | 35.4 / **12.6** | 32.8 / 10.4 |
+| **curriculum** (ep886) | 49.8 / 3.2 | 37.6 / 7.4 | 21.6 / 5.8 | 18.6 / 5.4 |
+| **zero-shot** (GEOM) | 65.0 / 0.8 | 56.8 / 0.8 | *fails to generate* | *fails to generate* |
+
+(usable-3D % Wilson CIs, e.g. multisite sz20 = 19.8 [16.5, 23.5]; cysonly sz25 = 12.6 [10.0, 15.8]. 14/16 cells; the 2 missing are zero-shot sz25/sz30, which raise "Could not generate in 5 attempts" — the GEOM model is structurally unable to generate at larger ADC linker sizes, consistent with §12's 0/600 at sizes 40/60/80. That failure is itself a result, not an error.)
+
+**Four findings:**
+1. **Multisite is the best operating point** — highest connectivity AND highest usable at every size (sz20: 52.4 % conn / **19.8 % usable**, ~2× cysonly's 8.8 %). This *overturns* the earlier "multisite has high connectivity but diluted chemistry" reading (§19.12.2): with connectivity-based checkpoint selection, multisite's ep904 carries both. The diversity↔specificity tradeoff was partly a bad-checkpoint artifact.
+2. **Chemistry-vs-connectivity tradeoff confirmed, with a usable sweet spot at size 20–25.** Connectivity falls monotonically with size (multisite 59.8→34.4; cysonly 57.2→32.8) while ADC-motif rate rises, so usable-3D peaks mid-size (cysonly peaks sz25 = 12.6 %; multisite plateaus 18–20 % over sz20–25).
+3. **Zero-shot proves the fine-tune supplies the chemistry.** GEOM zero-shot is the *most* connected (65 % at sz15) yet carries ~0 ADC motif (0.8 % usable) and cannot generate at all at sz25/30. The fine-tune trades a little connectivity for the Val-Cit/urea grammar — the single cleanest demonstration of what fine-tuning buys.
+4. **Operational yield is higher than previously stated, and it was gated by checkpoint selection.** The best config (multisite, sz20–25) reaches **~18–20 % usable-3D**, well above the prior ~9–10/100 (§19.18). The entire benchmark read ~4 % under the broken latest-checkpoint selection (§25.7); selecting on generated connectivity (the Finding-9 principle) was the unlock. Caveat: seed 0 only; per-epoch connectivity is noisy (§25.7) so multi-seed (≥3) is still required before quoting these as final numbers — the harness + splits for seeds 1/2 are ready.
+
 ### §25.5 Net state after this session
 
 Generation pipeline is now reproducible and version-controlled: a frozen dataset contract, a versioned+tested validity gate (the durable deliverable), a quantified failure taxonomy (disconnection is the wall, valence is a non-issue), and ready-to-run Pareto / LOPO / benchmark harnesses + a runnable per-linker pKa pilot. **Genuinely-blocking remainders:** the GPU trainings (user-executed) and a CpHMD-capable GROMACS build. The adversarial-validation discipline held throughout (gate 23/23, every no-GPU artifact validated on real data, headline MD numbers re-verified against raw trajectories).
