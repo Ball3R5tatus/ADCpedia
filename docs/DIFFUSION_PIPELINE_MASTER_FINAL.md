@@ -4187,6 +4187,22 @@ Executing the §25.4 decision (AMBER engine): the full GPU CpHMD toolchain was i
 
 **Gotchas logged (for reproducibility):** (a) conda libmamba broken (`libarchive.so.19`) → use a correctly-named micromamba; (b) gcc ≤14 required for CUDA 12.8 (pinned 13); (c) the session scratchpad `/tmp/.../scratchpad` is WIPED on restart → keep build scripts/logs under `/home/galeito/`; (d) pkill self-matches the running command's text (exit 144) → kill by PID; (e) pmemd.cuda GB needs `cut=9999`; (f) cphstats lives in AmberTools26 (`at26`), pmemd.cuda in `pmemd26`. Manual: `/home/galeito/Amber26/Amber26.pdf`; key CpHMD notes in `experiments/wave2/cphmd/AMBER26_MANUAL_NOTES.md`.
 
+### §25.10 — cand_4 GB CpHMD titration COMPLETE + per-residue pKa (2026-06-25)
+
+The cand_4 GB-CpHMD titration **ran to completion** (pH {3,4,5,6,7} × 2 ns) and gave the first **dynamic per-linker pKa** — upgrading the §25.6 static-PROPKA NULL to a real titration curve.
+
+**The WSL hang is stochastic, and was beaten without touching `auto_trading`.** pmemd.cuda hangs intermittently when a 2nd CUDA context (the user's trading bot, never to be killed) shares the GPU: NSTEP freezes while the GPU spins at ~99 %. It is NOT fixed by "fewer contexts" — pH3 completed clean, but pH4 froze at NSTEP 60000, pH5 hung **3×**, pH6 hung 1×. Solution = a **resume-capable driver** `experiments/wave2/cphmd/run_gb_resume.sh` (+ `gb_cph_resume.tmpl`): frequent restarts (`ntwr=10000`=20 ps, `ntxo=1`), an integrated stall detector (mdinfo NSTEP frozen >120 s → `kill -9`), and auto-resume from the last restart (`irest=1`, protonation continued from the last cprestrt), per-segment cpout that `cphstats` recombines. Accumulated time is read from **mdinfo** (format-independent) so `nstlim` shrinks each resume and a pH actually converges. Two bugs caught en route: the buffered mdout lags badly (monitor/watchdog must key on mdinfo, not the `.out` mtime → false stalls), and the restart is **NetCDF** (binary → can't sed the time).
+
+**Result (Hill fit `experiments/wave2/cphmd/fit_pka.py`, all 5 pH, RMSE < 0.04):**
+| proximal residue | pKa | Hill n | frac_prot pH 3→7 |
+|---|---|---|---|
+| ASP122 (AS4 122) | **4.30** | 2.02 | 0.92 / 0.81 / 0.03 / 0.01 / 0.00 |
+| GLU213 (GL4 213) | **4.44** | 1.46 | 0.96 / 0.82 / 0.13 / 0.00 / 0.01 |
+
+ASP122 is **+0.4 vs free Asp (~3.9)** — the conjugation-site microenvironment mildly stabilizes the neutral form; GLU213 is ~normal (ref ~4.4). Only the **2 pre-renamed carboxylates** titrate in [3,7] (the cpin's 79-residue default set is mostly Lys/Tyr/His whose pKa lies outside the window — confirms the §cpin "79 ≠ 3" finding). Output: `outputs/wave2/cphmd/cand_4/pka_summary.csv`.
+
+**Caveats (rigour):** 2 ns/pH is a short pilot; GB implicit solvent; single seed; ASP122 Hill n≈2 (steep — possible cooperativity or limited sampling). This is one candidate — the per-linker SIGNAL needs the comparison: **cand_5 + cand_vedotin are built + valence-validated** (`build_pilot_conjugates.sh`, attach C55/C67, both GAFF c5) and turnkey (need a GB min then the same resume driver). Reusable tooling is all parametric on `CAND`.
+
 ### §25.5 Net state after this session
 
 Generation pipeline is now reproducible and version-controlled: a frozen dataset contract, a versioned+tested validity gate (the durable deliverable), a quantified failure taxonomy (disconnection is the wall, valence is a non-issue), and ready-to-run Pareto / LOPO / benchmark harnesses + a runnable per-linker pKa pilot. **Genuinely-blocking remainders:** the GPU trainings (user-executed) and a CpHMD-capable GROMACS build. The adversarial-validation discipline held throughout (gate 23/23, every no-GPU artifact validated on real data, headline MD numbers re-verified against raw trajectories).
